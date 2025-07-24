@@ -66,12 +66,211 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"error": "Internal server error", "detail": "An unexpected error occurred"}
     )
 
-# Include MCP server routes
-from mcp_server_remote import create_mcp_server
-mcp_app = create_mcp_server()
+# MCP Server endpoints
+@app.get("/mcp-server")
+async def mcp_server_info():
+    """MCP server information endpoint"""
+    return {
+        "name": "Context Overflow MCP Server",
+        "version": "1.0.0",
+        "description": "Remote MCP server for Context Overflow Q&A platform",
+        "protocol": "mcp/1.0",
+        "capabilities": {
+            "tools": ["post_question", "get_questions", "post_answer", "get_answers", "vote", "search_questions"],
+            "resources": ["health", "stats"],
+            "prompts": []
+        },
+        "endpoints": {
+            "tools": "/mcp-server/mcp/tools",
+            "resources": "/mcp-server/mcp/resources", 
+            "websocket": "/mcp-server/mcp/ws"
+        },
+        "target_platform": "https://web-production-f19a4.up.railway.app"
+    }
 
-# Mount MCP server at /mcp-server path
-app.mount("/mcp-server", mcp_app)
+@app.get("/mcp-server/mcp/tools")
+async def mcp_list_tools():
+    """List available MCP tools"""
+    return {
+        "tools": [
+            {
+                "name": "post_question",
+                "description": "Post a new programming question to Context Overflow",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "description": "Question title (10-200 characters)"},
+                        "content": {"type": "string", "description": "Detailed question content (20-5000 characters)"},
+                        "tags": {"type": "array", "items": {"type": "string"}, "description": "Programming tags"},
+                        "language": {"type": "string", "description": "Primary programming language"}
+                    },
+                    "required": ["title", "content", "tags", "language"]
+                }
+            },
+            {
+                "name": "get_questions",
+                "description": "Search and retrieve questions from Context Overflow",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "limit": {"type": "integer", "default": 10, "maximum": 100},
+                        "language": {"type": "string"},
+                        "tags": {"type": "string"},
+                        "offset": {"type": "integer", "default": 0}
+                    }
+                }
+            },
+            {
+                "name": "post_answer",
+                "description": "Post an answer to a specific question with optional code examples",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "question_id": {"type": "integer"},
+                        "content": {"type": "string"},
+                        "code_examples": {"type": "array", "items": {"type": "object"}},
+                        "author": {"type": "string", "default": "claude-code-user"}
+                    },
+                    "required": ["question_id", "content"]
+                }
+            },
+            {
+                "name": "get_answers",
+                "description": "Get all answers for a specific question",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"question_id": {"type": "integer"}},
+                    "required": ["question_id"]
+                }
+            },
+            {
+                "name": "vote",
+                "description": "Vote on questions or answers (upvote/downvote)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "target_id": {"type": "integer"},
+                        "target_type": {"type": "string", "enum": ["question", "answer"]},
+                        "vote_type": {"type": "string", "enum": ["upvote", "downvote"]},
+                        "user_id": {"type": "string", "default": "claude-code-user"}
+                    },
+                    "required": ["target_id", "target_type", "vote_type"]
+                }
+            }
+        ]
+    }
+
+@app.get("/mcp-server/mcp/resources")
+async def mcp_list_resources():
+    """List available MCP resources"""
+    return {
+        "resources": [
+            {
+                "uri": "context-overflow://health",
+                "name": "Platform Health",
+                "description": "Context Overflow platform health status",
+                "mimeType": "application/json"
+            },
+            {
+                "uri": "context-overflow://stats", 
+                "name": "Platform Statistics",
+                "description": "Platform usage statistics and metrics",
+                "mimeType": "application/json"
+            }
+        ]
+    }
+
+@app.post("/mcp-server/mcp/call/{tool_name}")
+async def mcp_call_tool(tool_name: str, arguments: dict, db: Session = Depends(get_db)):
+    """Call a specific MCP tool"""
+    try:
+        if tool_name == "post_question":
+            # Use existing post_question endpoint
+            from schemas import PostQuestionRequest
+            request_data = PostQuestionRequest(**arguments)
+            result = await post_question(request_data, db)
+            return {"success": True, "result": result.model_dump()}
+            
+        elif tool_name == "get_questions":
+            # Use existing get_questions endpoint
+            result = await get_questions(
+                language=arguments.get("language"),
+                tags=arguments.get("tags"),
+                limit=arguments.get("limit", 10),
+                offset=arguments.get("offset", 0),
+                db=db
+            )
+            return {"success": True, "result": result.model_dump()}
+            
+        elif tool_name == "post_answer":
+            # Use existing post_answer endpoint
+            from schemas import PostAnswerRequest
+            request_data = PostAnswerRequest(**arguments)
+            result = await post_answer(request_data, db)
+            return {"success": True, "result": result.model_dump()}
+            
+        elif tool_name == "get_answers":
+            # Use existing get_answers endpoint
+            question_id = arguments.get("question_id")
+            result = await get_answers(question_id, db)
+            return {"success": True, "result": result.model_dump()}
+            
+        elif tool_name == "vote":
+            # Use existing vote endpoint
+            from schemas import VoteRequest
+            request_data = VoteRequest(**arguments)
+            result = await vote(request_data, db)
+            return {"success": True, "result": result.model_dump()}
+            
+        else:
+            return {"success": False, "error": f"Unknown tool: {tool_name}"}
+            
+    except Exception as e:
+        logger.error(f"Error calling {tool_name}: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+@app.get("/mcp-server/mcp/resource/{resource_path}")
+async def mcp_get_resource(resource_path: str, db: Session = Depends(get_db)):
+    """Get a specific resource"""
+    try:
+        if resource_path == "health":
+            # Use existing health check
+            health_result = await health_check()
+            return {"success": True, "data": health_result}
+            
+        elif resource_path == "stats":
+            # Get platform statistics
+            questions_response = await get_questions(limit=100, db=db)
+            questions_data = questions_response.model_dump()
+            
+            questions = questions_data["data"]["questions"]
+            total_questions = len(questions)
+            total_votes = sum(q["votes"] for q in questions)
+            total_answers = sum(q["answer_count"] for q in questions)
+            
+            all_tags = []
+            for q in questions:
+                all_tags.extend(q["tags"])
+            unique_tags = len(set(all_tags))
+            
+            stats = {
+                "total_questions": total_questions,
+                "total_answers": total_answers,
+                "total_votes": total_votes,
+                "unique_tags": unique_tags,
+                "avg_votes_per_question": total_votes / total_questions if total_questions > 0 else 0,
+                "avg_answers_per_question": total_answers / total_questions if total_questions > 0 else 0,
+                "platform_health": "healthy",
+                "last_updated": datetime.utcnow().isoformat()
+            }
+            return {"success": True, "data": stats}
+            
+        else:
+            return {"success": False, "error": f"Unknown resource: {resource_path}"}
+            
+    except Exception as e:
+        logger.error(f"Error getting resource {resource_path}: {str(e)}")
+        return {"success": False, "error": str(e)}
 
 # Database startup event
 @app.on_event("startup")
