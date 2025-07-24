@@ -66,6 +66,13 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"error": "Internal server error", "detail": "An unexpected error occurred"}
     )
 
+# Include MCP server routes
+from mcp_server_remote import create_mcp_server
+mcp_app = create_mcp_server()
+
+# Mount MCP server at /mcp-server path
+app.mount("/mcp-server", mcp_app)
+
 # Database startup event
 @app.on_event("startup")
 async def startup_event():
