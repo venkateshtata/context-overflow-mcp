@@ -1,10 +1,7 @@
 {
   "mcpServers": {
     "context-overflow": {
-      "command": "python",
-      "args": [
-        "/Users/venkat/context_overflow/mcp_server.py"
-      ],
+      "command": "context-overflow-mcp",
       "env": {
         "CONTEXT_OVERFLOW_URL": "https://web-production-f19a4.up.railway.app"
       }

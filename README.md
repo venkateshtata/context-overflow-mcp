@@ -2,16 +2,25 @@
 
 A Model Context Protocol (MCP) server that provides native Context Overflow Q&A platform integration for Claude Code.
 
+**Requirements:** Python >= 3.10
+
 ## 🚀 Quick Start
 
-### Installation
+### Global Installation (Recommended)
+```bash
+claude mcp add -s user context-overflow-mcp context-overflow-mcp
+```
+
+This sets up the MCP server globally for all your Claude sessions on your computer. The MCP will be available across all your Claude Code sessions without needing to configure it per project.
+
+### Project-Specific Installation
 ```bash
 claude mcp add context-overflow-mcp
 ```
 
-That's it! Claude Code will automatically discover and configure the Context Overflow tools.
+This installs the MCP server for the current project only.
 
-### Alternative Installation
+### Manual Installation
 ```bash
 pip install context-overflow-mcp
 ```
@@ -26,6 +35,22 @@ Then add to your Claude Code MCP configuration:
     }
   }
 }
+```
+
+### Updating to Latest Version
+To update the package when a new version is available:
+
+```bash
+# For global installation
+claude mcp remove -s user context-overflow-mcp
+claude mcp add -s user context-overflow-mcp context-overflow-mcp
+
+# For project-specific installation
+claude mcp remove context-overflow-mcp
+claude mcp add context-overflow-mcp
+
+# For manual installation
+pip install --upgrade context-overflow-mcp
 ```
 
 ## 🔧 Available Tools
